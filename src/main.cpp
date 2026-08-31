@@ -8,7 +8,10 @@
 #include <random>
 #include <cmath>
 
-#include "init.h"
+#include "RenderWindow.h"
+#include "LoadRessource.h"
+#include "Box2D_Init.h"
+#include "Tray.h"
 
 class BoxCollider : public b2ContactListener
 {
@@ -35,10 +38,10 @@ public:
     }
 };
 
-void SpawnFallingBody(std::vector <b2Body*>& BodiesList, SDL_Window* window, b2World& world)
+void SpawnFallingBody(std::vector <b2Body*>& BodiesList, SDL_Window* window, b2World& world, int WindowHeight, int WindowWidth)
 {
-    int WindowWidth, WindowHeight;
-    SDL_GetWindowSize(window, &WindowWidth, &WindowHeight);
+    // int WindowWidth, WindowHeight;
+    // SDL_GetWindowSize(window, &WindowWidth, &WindowHeight);
     const float SCALE = 30.0f;
     float FallingBodyAngle = 0.0f;
 
@@ -97,29 +100,33 @@ int main(int argc, char* argv[])
         std::cout << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
 
     if (!IMG_Init(IMG_INIT_PNG))
-        std::cout << "IMG_init has failed ! SDL_image Error: " << SDL_GetError() << std::endl;
+        std::cout << "IMG_init has failed ! SDL_image Error: " << IMG_GetError() << std::endl;
 
-    TTF_Init();
+    if (TTF_Init() < 0)
+    {
+        std::cout << "TTF_Init has failed ! TTF_Init Error: " << TTF_GetError() << std::endl;
+    }
+
+    RenderWindowClass* InitWindow = new RenderWindowClass("CrazyBar",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,600,600,SDL_WINDOW_SHOWN);
+
+    SDL_Window* window = InitWindow->GetWindow();
+    SDL_Renderer* renderer = InitWindow->GetRenderer();
 
     Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048);
 
+    LoadRessource* Ressource = new LoadRessource(renderer);
 
-    SDL_Window* window = SDL_CreateWindow("CrazyBar", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 600, 600, SDL_WINDOW_SHOWN);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    // Box2D settings
+    Box2D_Init Box2D;
+    b2World world = Box2D.GetWorld();
+    world.SetGravity(Box2D.GetGravity());
 
-
-    //RenderWindow("CrazyBar",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,600,600,SDL_WINDOW_SHOWN);
-
-
-
-    int mouseX, mouseY;
-
-    int lastMouseXPosition = mouseX, lastMouseYPosition = mouseY;
+    // Clean
 
     std::vector <b2Body*> FallingBodies;
 
-    int WindowWidth, WindowHeight;
-    SDL_GetWindowSize(window, &WindowWidth, &WindowHeight);
+    // int WindowWidth, WindowHeight;
+    // SDL_GetWindowSize(window, &WindowWidth, &WindowHeight);
 
     std::random_device TimerRd;
     std::mt19937 TimerGen(TimerRd());
@@ -130,12 +137,7 @@ int main(int argc, char* argv[])
     int BodiesInAir = 0;
     int BodiesOnTray = 0;
 
-    // Box2D settings
-    b2Vec2 gravity(0.0f, 15.0f);
-    b2World world(gravity);
-    float timeStep = 1.0f / 60.0f;
-    int velocityIterations = 6;
-    int positionIterations = 2;
+
 
     BoxCollider ColliderListener;
     world.SetContactListener(&ColliderListener);
@@ -143,29 +145,14 @@ int main(int argc, char* argv[])
     const float SCALE = 30.0f;
 
     // TrayBody
-    b2PolygonShape TrayBodyShape;
-    TrayBodyShape.SetAsBox((200.0f / 2.0f) / SCALE, (10.0f / 2.0f) / SCALE);
-    const float TrayAngle = 0.0f;
-
-    b2FixtureDef TrayBodyFixtureDef;
-    TrayBodyFixtureDef.shape = &TrayBodyShape;
-    TrayBodyFixtureDef.density = 1.0f;
-    TrayBodyFixtureDef.friction = 1.0f; // (0 = glass, 1 = sandpaper)
-
-    b2BodyDef TrayBodyDef;
-    TrayBodyDef.type = b2_kinematicBody; // (b2_staticBody, b2_dynamicBody, ou b2_kinematicBody)
-    b2Body* TrayBody = world.CreateBody(&TrayBodyDef);
-    TrayBody->CreateFixture(&TrayBodyFixtureDef);
-
-    ColliderListener.Tray = TrayBody;
-
+    Tray* TrayBody = new Tray(&world);
 
     b2BodyDef WallDef;
     WallDef.type = b2_kinematicBody; // Les murs ne bougent jamais
 
     b2PolygonShape WallShape;
     // Un mur fait 1 mètre de large et prend toute la hauteur de l'écran
-    WallShape.SetAsBox(1.0f, (WindowHeight / SCALE) + 10.0f / 2.0f);
+    WallShape.SetAsBox(1.0f, (InitWindow->GetWindowHeight() / SCALE) + 10.0f / 2.0f);
 
     b2FixtureDef WallFixture;
     WallFixture.shape = &WallShape;
@@ -175,101 +162,19 @@ int main(int argc, char* argv[])
     // Mur de Gauche (Placé sur x = 0)
     b2Body* LeftWall = world.CreateBody(&WallDef);
     LeftWall->CreateFixture(&WallFixture);
-    LeftWall->SetTransform(b2Vec2(0, (WindowHeight / SCALE) / 2.0f), 0.0f);
+    LeftWall->SetTransform(b2Vec2(0, (InitWindow->GetWindowHeight() / SCALE) / 2.0f), 0.0f);
 
     // Mur de Droite (Placé sur x = Largeur de l'écran)
     b2Body* RightWall = world.CreateBody(&WallDef);
     RightWall->CreateFixture(&WallFixture);
-    RightWall->SetTransform(b2Vec2(WindowWidth / SCALE, (WindowHeight / SCALE) / 2.0f), 0.0f);
-
-    // Load Textures
-    SDL_Texture* Box = IMG_LoadTexture(renderer, "res/sprite/Box.png");
-    if (Box == nullptr)
-    {
-        std::cout << "Loading Box Texture Error : " << IMG_GetError() << std::endl;
-    }
-    SDL_Texture* Tray = IMG_LoadTexture(renderer, "res/sprite/Tray.png");
-    if (Tray == nullptr)
-    {
-        std::cout << "Loading Tray Texture Error : " << IMG_GetError() << std::endl;
-    }
-
-    SDL_Texture* BG = IMG_LoadTexture(renderer, "res/sprite/Game_BG_2.png");
-    if (BG == nullptr)
-    {
-        std::cout << "Loading BG Texture Error : " << IMG_GetError() << std::endl;
-    }
-
-
-    TTF_Font* Font = TTF_OpenFont("res/font/Oswald_Bold.ttf", 70);
-    if (Font == nullptr)
-    {
-        std::cout << "Font loading Error : " << TTF_GetError() << std::endl;
-    }
-
-    TTF_Font* ScoreAnimation = TTF_OpenFont("res/font/Oswald_Bold.ttf", 16);
-    if (ScoreAnimation == nullptr)
-    {
-        std::cout << "ScoreAnimation Font loading Error : " << TTF_GetError() << std::endl;
-    }
-
-    /*
-    Mix_Music* AmbienceSound = Mix_LoadMUS("");
-    if (AmbienceSound == nullptr)
-    {
-        std::cout << "AmbienceSound loading Error : " << Mix_GetError() << std::endl;
-    }
-    Mix_PlayMusic(AmbienceSound, 1);
-    */
-
-    Mix_Chunk* BonusSound = Mix_LoadWAV("res/sound/bonus.mp3");
-    if (BonusSound == nullptr)
-    {
-        std::cout << "BonusSound loading Error : " << Mix_GetError() << std::endl;
-    }
-
-    Mix_Chunk* BoxSound1 = Mix_LoadWAV("res/sound/BoxSound1.mp3");
-    if (BonusSound == nullptr)
-    {
-        std::cout << "BoxSound1 loading Error : " << Mix_GetError() << std::endl;
-    }
-
-    Mix_Chunk* BoxSound2 = Mix_LoadWAV("res/sound/BoxSound2.mp3");
-    if (BonusSound == nullptr)
-    {
-        std::cout << "BoxSound2 loading Error : " << Mix_GetError() << std::endl;
-    }
-
-    Mix_Chunk* BoxSound3 = Mix_LoadWAV("res/sound/BoxSound3.mp3");
-    if (BonusSound == nullptr)
-    {
-        std::cout << "BoxSound3 loading Error : " << Mix_GetError() << std::endl;
-    }
-
-    Mix_Chunk* BoxSound4 = Mix_LoadWAV("res/sound/BoxSound4.mp3");
-    if (BonusSound == nullptr)
-    {
-        std::cout << "BoxSound4 loading Error : " << Mix_GetError() << std::endl;
-    }
-
-    Mix_Chunk* BoxSound5 = Mix_LoadWAV("res/sound/BoxSound5.mp3");
-    if (BonusSound == nullptr)
-    {
-        std::cout << "BoxSound5 loading Error : " << Mix_GetError() << std::endl;
-    }
-
-    Mix_Chunk* LevelUpSound = Mix_LoadWAV("res/sound/level_up.mp3");
-    if (LevelUpSound == nullptr)
-    {
-        std::cout << "LevelUpSound loading Error : " << Mix_GetError() << std::endl;
-    }
+    RightWall->SetTransform(b2Vec2(InitWindow->GetWindowWidth() / SCALE, (InitWindow->GetWindowHeight() / SCALE) / 2.0f), 0.0f);
 
     std::vector<Mix_Chunk*> Box_Sound;
-    Box_Sound.push_back(BoxSound1);
-    Box_Sound.push_back(BoxSound2);
-    Box_Sound.push_back(BoxSound3);
-    Box_Sound.push_back(BoxSound4);
-    Box_Sound.push_back(BoxSound5);
+    Box_Sound.push_back(Ressource->GetSound("BoxSound1"));
+    Box_Sound.push_back(Ressource->GetSound("BoxSound2"));
+    Box_Sound.push_back(Ressource->GetSound("BoxSound3"));
+    Box_Sound.push_back(Ressource->GetSound("BoxSound4"));
+    Box_Sound.push_back(Ressource->GetSound("BoxSound5"));
 
     ColliderListener.Sound = Box_Sound;
 
@@ -307,25 +212,27 @@ int main(int argc, char* argv[])
             }
         }
 
-        // 1. INPUTS ET VITESSES (Avant la physique !)
-        SDL_GetMouseState(&mouseX, &mouseY);
+        TrayBody->TrayMovement();
 
-        // Nouvelle technique fluide : On calcule la vitesse pour atteindre la souris
-        b2Vec2 targetPosition(mouseX / SCALE, mouseY / SCALE);
-        b2Vec2 currentPosition = TrayBody->GetPosition();
-        b2Vec2 velocity = targetPosition - currentPosition;
-        velocity *= 60.0f; // On multiplie par les FPS pour qu'il y aille en 1 frame
-
-        TrayBody->SetLinearVelocity(velocity);
-        // SUPPRESSION des TrayBody->SetTransform ! La vitesse fera tout le travail.
+        // // 1. INPUTS ET VITESSES (Avant la physique !)
+        // SDL_GetMouseState(&mouseX, &mouseY);
+        //
+        // // Nouvelle technique fluide : On calcule la vitesse pour atteindre la souris
+        // b2Vec2 targetPosition(mouseX / SCALE, mouseY / SCALE);
+        // b2Vec2 currentPosition = TrayBody->GetBody()->GetPosition();
+        // b2Vec2 velocity = targetPosition - currentPosition;
+        // velocity *= 60.0f; // On multiplie par les FPS pour qu'il y aille en 1 frame
+        //
+        // TrayBody->GetBody()->SetLinearVelocity(velocity);
+        // // SUPPRESSION des TrayBody->SetTransform ! La vitesse fera tout le travail.
 
         // 2. SIMULATION PHYSIQUE
-        world.Step(timeStep, velocityIterations, positionIterations);
+        world.Step(Box2D.GetTimeStep(), Box2D.GetVelocityIterations(), Box2D.GetPositionIterations());
 
         // 3. GESTION DU SPAWN
         if (Timer == 0 && BodiesInAir < maxbodiesInAir)
         {
-            SpawnFallingBody(FallingBodies, window, world);
+            SpawnFallingBody(FallingBodies, window, world, InitWindow->GetWindowHeight(), InitWindow->GetWindowWidth());
             Timer = TimerDis(TimerGen);
         }
         else if (Timer > 0)
@@ -335,15 +242,15 @@ int main(int argc, char* argv[])
 
         // 4. RENDU GRAPHIQUE
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        for (int y = 0; y <= WindowWidth; y += 128) {
-            for (int x = 0; x <= WindowWidth; x += 128)
+        for (int y = 0; y <= InitWindow->GetWindowWidth(); y += 128) {
+            for (int x = 0; x <= InitWindow->GetWindowWidth(); x += 128)
             {
                 SDL_Rect BGReact;
                 BGReact.x = x;   // Position X
                 BGReact.y = y;   // Position Y
                 BGReact.w = 128; // Largeur (Width)
                 BGReact.h = 128; // Hauteur (Height)
-                SDL_RenderCopyEx(renderer, BG, NULL, &BGReact, 0.0F, NULL, SDL_FLIP_HORIZONTAL);
+                SDL_RenderCopyEx(renderer, Ressource->GetSprite("BG"), NULL, &BGReact, 0.0F, NULL, SDL_FLIP_HORIZONTAL);
             }
         }
 
@@ -353,7 +260,7 @@ int main(int argc, char* argv[])
         SDL_Color color = {255, 255, 255, 255}; // Couleur blanche
         std::string scoreText = std::to_string(Score);
 
-        SDL_Surface* surface = TTF_RenderText_Solid(Font, scoreText.c_str(), color);
+        SDL_Surface* surface = TTF_RenderText_Solid(Ressource->GetFont("ScoreGUIFont"), scoreText.c_str(), color);
         if (surface != nullptr)
         {
             SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -364,8 +271,8 @@ int main(int argc, char* argv[])
             ScoreRect.h = surface->h * 2;
 
             // Formule pour centrer parfaitement le texte à l'écran
-            ScoreRect.x = (WindowWidth - ScoreRect.w) / 2;
-            ScoreRect.y = (WindowHeight - ScoreRect.h) / 2;
+            ScoreRect.x = (InitWindow->GetWindowWidth() - ScoreRect.w) / 2;
+            ScoreRect.y = (InitWindow->GetWindowHeight() - ScoreRect.h) / 2;
 
             // On dessine le score
             SDL_RenderCopy(renderer, texture, NULL, &ScoreRect);
@@ -387,14 +294,14 @@ int main(int argc, char* argv[])
             SpawningObject.y = (i->GetPosition().y * SCALE) - (SpawningObject.h / 2);
 
 
-            if (Box == nullptr)
+            if (Ressource->GetSprite("Box") == nullptr)
             {
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
                 SDL_RenderFillRect(renderer, &SpawningObject);
             }
             else
             {
-                SDL_RenderCopyEx(renderer, Box, NULL, &SpawningObject, i->GetAngle() * 180.0f / M_PI, NULL, SDL_FLIP_HORIZONTAL);
+                SDL_RenderCopyEx(renderer, Ressource->GetSprite("Box"), NULL, &SpawningObject, i->GetAngle() * 180.0f / M_PI, NULL, SDL_FLIP_HORIZONTAL);
             }
 
             if (std::abs(i->GetLinearVelocity().y) > 0.5f)
@@ -407,7 +314,7 @@ int main(int argc, char* argv[])
 
                 //Mix_PlayChannel(-1,Box_Sound[disBoxSoundRd(genRdBoxSound)],0);
 
-                b2Vec2 trayPos = TrayBody->GetPosition();
+                b2Vec2 trayPos = TrayBody->GetBody()->GetPosition();
                 b2Vec2 boxPos = i->GetPosition();
                 float distance = (trayPos - boxPos).Length(); // Calcule la vraie distance (hypoténuse)
 
@@ -440,7 +347,7 @@ int main(int argc, char* argv[])
         // 5. NETTOYAGE
         for (int i = 0; i < FallingBodies.size();)
         {
-            if (FallingBodies[i]->GetPosition().y > (WindowHeight / SCALE) + 2.0f)
+            if (FallingBodies[i]->GetPosition().y > (InitWindow->GetWindowHeight() / SCALE) + 2.0f)
             {
                 world.DestroyBody(FallingBodies[i]);
                 FallingBodies.erase(FallingBodies.begin() + i);
@@ -456,17 +363,17 @@ int main(int argc, char* argv[])
         SDL_Rect TrayObject;
         TrayObject.w = 200;
         TrayObject.h = 10;
-        TrayObject.x = (TrayBody->GetPosition().x * SCALE) - (TrayObject.w / 2);
-        TrayObject.y = (TrayBody->GetPosition().y * SCALE) - (TrayObject.h / 2);
+        TrayObject.x = (TrayBody->GetBody()->GetPosition().x * SCALE) - (TrayObject.w / 2);
+        TrayObject.y = (TrayBody->GetBody()->GetPosition().y * SCALE) - (TrayObject.h / 2);
 
-        if (Tray == nullptr)
+        if (Ressource->GetSprite("Tray") == nullptr)
         {
             SDL_SetRenderDrawColor(renderer, 104, 39, 13, 255); // Couleur marron
             SDL_RenderFillRect(renderer, &TrayObject);
         }
         else
         {
-            SDL_RenderCopyEx(renderer, Tray, NULL, &TrayObject, 0.0f, NULL, SDL_FLIP_NONE);
+            SDL_RenderCopyEx(renderer, Ressource->GetSprite("Tray"), NULL, &TrayObject, 0.0f, NULL, SDL_FLIP_NONE);
         }
 
 
@@ -502,8 +409,8 @@ int main(int argc, char* argv[])
             }
             else
             {
-                popupX = TrayBody->GetPosition().x * SCALE;
-                popupY = (TrayBody->GetPosition().y * SCALE) - 40.0f;
+                popupX = TrayBody->GetBody()->GetPosition().x * SCALE;
+                popupY = (TrayBody->GetBody()->GetPosition().y * SCALE) - 40.0f;
             }
         }
 
@@ -517,11 +424,11 @@ int main(int argc, char* argv[])
             std::string popupText = "+1 Box Stacking";
             if (!SoundAlreadyPlayed)
             {
-                Mix_PlayChannel(-1,BonusSound,0);
+                Mix_PlayChannel(-1,Ressource->GetSound("BonusSound"),0);
                 SoundAlreadyPlayed = true;
             }
 
-            SDL_Surface* ScoreSurface = TTF_RenderText_Blended(ScoreAnimation, popupText.c_str(), popupColor);
+            SDL_Surface* ScoreSurface = TTF_RenderText_Blended(Ressource->GetFont("ScoreAnimation"), popupText.c_str(), popupColor);
             if (ScoreSurface != nullptr)
             {
                 SDL_Texture* ScoreTexture = SDL_CreateTextureFromSurface(renderer, ScoreSurface);
@@ -569,13 +476,13 @@ int main(int argc, char* argv[])
 
         if (Score == 5 && !AlreadyScored)
         {
-            WindowWidth = 1080;
-            WindowHeight = 600;
+            InitWindow->SetWindowHeight(600);
+            InitWindow->SetWindowWidth(1080);
 
-            SDL_SetWindowSize(window, WindowWidth, WindowHeight);
+            SDL_SetWindowSize(window, InitWindow->GetWindowWidth(), InitWindow->GetWindowHeight());
             SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-            RightWall->SetTransform(b2Vec2(WindowWidth / SCALE, (WindowHeight / SCALE) / 2.0f), 0.0f);
-            Mix_PlayChannel(-1,LevelUpSound,0);
+            RightWall->SetTransform(b2Vec2(InitWindow->GetWindowWidth() / SCALE, (InitWindow->GetWindowHeight() / SCALE) / 2.0f), 0.0f);
+            Mix_PlayChannel(-1,Ressource->GetSound("LevelUpSound"),0);
             AlreadyScored = true;
         }
         else if (Score > 5 && Score < 10)
@@ -584,13 +491,13 @@ int main(int argc, char* argv[])
         }
         else if (Score == 10 && !AlreadyScored)
         {
-            WindowWidth = 1680;
-            WindowHeight = 600;
+            InitWindow->SetWindowHeight(600);
+            InitWindow->SetWindowWidth(1680);
 
-            SDL_SetWindowSize(window, WindowWidth, WindowHeight);
+            SDL_SetWindowSize(window, InitWindow->GetWindowWidth(), InitWindow->GetWindowHeight());
             SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-            RightWall->SetTransform(b2Vec2(WindowWidth / SCALE, (WindowHeight / SCALE) / 2.0f), 0.0f);
-            Mix_PlayChannel(-1,LevelUpSound,0);
+            RightWall->SetTransform(b2Vec2(InitWindow->GetWindowWidth() / SCALE, (InitWindow->GetWindowHeight() / SCALE) / 2.0f), 0.0f);
+            Mix_PlayChannel(-1,Ressource->GetSound("LevelUpSound"),0);
             AlreadyScored = true;
         }
         else if (Score > 10 && Score < 15)
@@ -599,13 +506,13 @@ int main(int argc, char* argv[])
         }
         else if (Score == 15 && !AlreadyScored)
         {
-            WindowWidth = 2280;
-            WindowHeight = 600;
+            InitWindow->SetWindowHeight(600);
+            InitWindow->SetWindowWidth(2280);
 
-            SDL_SetWindowSize(window, WindowWidth, WindowHeight);
+            SDL_SetWindowSize(window, InitWindow->GetWindowWidth(), InitWindow->GetWindowHeight());
             SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-            RightWall->SetTransform(b2Vec2(WindowWidth / SCALE, (WindowHeight / SCALE) / 2.0f), 0.0f);
-            Mix_PlayChannel(-1,LevelUpSound,0);
+            RightWall->SetTransform(b2Vec2(InitWindow->GetWindowWidth() / SCALE, (InitWindow->GetWindowHeight() / SCALE) / 2.0f), 0.0f);
+            Mix_PlayChannel(-1,Ressource->GetSound("LevelUpSound"),0);
             AlreadyScored = true;
         }
 
@@ -620,10 +527,11 @@ int main(int argc, char* argv[])
     }
 
     SDL_DestroyRenderer(renderer);
-    SDL_DestroyTexture(Box);
-    SDL_DestroyTexture(Tray);
+    SDL_DestroyTexture(Ressource->GetSprite("Box"));
+    SDL_DestroyTexture(Ressource->GetSprite("Tray"));
     SDL_DestroyWindow(window);
-    TTF_CloseFont(Font);
+    TTF_CloseFont(Ressource->GetFont("ScoreGUIFont"));
+    TTF_CloseFont(Ressource->GetFont("ScoreAnimation"));
     TTF_Quit();
     IMG_Quit();
     SDL_Quit();

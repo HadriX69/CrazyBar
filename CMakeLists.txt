@@ -8,7 +8,11 @@ include(FetchContent)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "bin")
 
-add_executable(${PROJECT_NAME} "src/main.cpp")
+add_executable(${PROJECT_NAME} "src/main.cpp"
+        src/RenderWindow.cpp
+        src/LoadRessource.cpp
+        src/Tray.cpp
+        src/Box2D_Init.cpp)
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -m64)
 
@@ -18,6 +22,7 @@ FetchContent_Declare(
         GIT_TAG v2.4.1
 )
 FetchContent_MakeAvailable(box2d)
+
 
 target_include_directories(${PROJECT_NAME} PRIVATE "C:/SDL2-w64/include")
 target_link_directories(${PROJECT_NAME} PRIVATE "C:/SDL2-w64/lib")
