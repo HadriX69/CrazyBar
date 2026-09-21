@@ -9,12 +9,17 @@ RenderWindowClass::RenderWindowClass(const char* p_title, int p_x, int p_y, int 
     :window(NULL), renderer(NULL)
 {
     window = SDL_CreateWindow(p_title, p_x, p_y, p_w, p_h, flags);
-    SDL_GetWindowSize(window, &WindowWidth, &WindowHeight);
+
     if (window == NULL)
     {
         std::cout << "Error Window Failed to init : " << SDL_GetError() << std::endl;
+        return;
     }
+
+    SDL_GetWindowSize(window, &WindowWidth, &WindowHeight);
+
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
     if (renderer == NULL)
     {
         std::cout << "Error Renderer Failed to init : " << SDL_GetError() << std::endl;

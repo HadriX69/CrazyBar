@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
 
     // Box2D settings
     Box2D_Init Box2D;
-    b2World world = Box2D.GetWorld();
+    b2World& world = Box2D.GetWorld();
     world.SetGravity(Box2D.GetGravity());
 
     // Clean
@@ -526,12 +526,22 @@ int main(int argc, char* argv[])
         }
     }
 
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyTexture(Ressource->GetSprite("Box"));
-    SDL_DestroyTexture(Ressource->GetSprite("Tray"));
-    SDL_DestroyWindow(window);
     TTF_CloseFont(Ressource->GetFont("ScoreGUIFont"));
     TTF_CloseFont(Ressource->GetFont("ScoreAnimation"));
+
+    Mix_FreeChunk(Ressource->GetSound("BonusSound"));
+    Mix_FreeChunk(Ressource->GetSound("BoxSound1"));
+    Mix_FreeChunk(Ressource->GetSound("BoxSound2"));
+    Mix_FreeChunk(Ressource->GetSound("BoxSound3"));
+    Mix_FreeChunk(Ressource->GetSound("BoxSound4"));
+    Mix_FreeChunk(Ressource->GetSound("BoxSound5"));
+    Mix_FreeChunk(Ressource->GetSound("LevelUpSound"));
+
+    Mix_CloseAudio();
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+
     TTF_Quit();
     IMG_Quit();
     SDL_Quit();

@@ -10,7 +10,7 @@ class Box2D_Init
     public:
     Box2D_Init();
     ~Box2D_Init();
-    b2World GetWorld(){return world;}
+    b2World& GetWorld(){return world;}
     b2Vec2 GetGravity(){return gravity;}
     float GetTimeStep(){return timeStep;}
     int GetVelocityIterations(){return velocityIterations;}

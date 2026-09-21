@@ -1,59 +1,89 @@
-cmake_minimum_required(VERSION 4.2)
-project(CrazyBar CXX)
+cmake_minimum_required(VERSION 3.21)
+
+project(CrazyBar LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 1. On regroupe les sources communes aux deux versions
-set(SOURCES
-        src/main.cpp
-        src/RenderWindow.cpp
-        src/LoadRessource.cpp
-        src/Tray.cpp
-        src/Box2D_Init.cpp
+include(FetchContent)
+include(GNUInstallDirs)
+
+# ────────────────────────────────────────
+# Box2D
+# ────────────────────────────────────────
+
+FetchContent_Declare(
+        box2d
+        GIT_REPOSITORY https://github.com/erincatto/box2d.git
+        GIT_TAG v2.4.1
 )
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "" FORCE)
 
-# ---------------------------------------------------------
-# CIBLE 3DS (Le toolchain devkitPro crée la variable "3DS")
-# ---------------------------------------------------------
-if(3DS)
-    message(STATUS "Nintendo 3DS Configuration detected !")
+FetchContent_MakeAvailable(box2d)
 
-    # On utilise find_package pour trouver les portlibs 3DS (SDL2, etc.)
-    find_package(SDL2 REQUIRED)
+# ────────────────────────────────────────
+# Dependencies
+# ────────────────────────────────────────
 
-    # On lie les librairies 3DS (ctru est vitale pour la console)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ctru SDL2::SDL2 box2d)
+find_package(SDL2 REQUIRED)
+find_package(SDL2_image REQUIRED)
+find_package(SDL2_ttf REQUIRED)
+find_package(SDL2_mixer REQUIRED)
 
-    # On génère le fichier .3dsx
-    if(COMMAND add_3dsx_target)
-        add_3dsx_target(${PROJECT_NAME})
-    endif()
+# ────────────────────────────────────────
+# Executable
+# ────────────────────────────────────────
 
-    # ---------------------------------------------------------
-    # CIBLE PC (Windows 64-bits)
-    # ---------------------------------------------------------
-else()
-    message(STATUS "Windows Configuration detected !")
+add_executable(CrazyBar
+        main.cpp
+        Box2D_Init.cpp
+        LoadRessource.cpp
+        RenderWindow.cpp
+        Tray.cpp
+)
 
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -m64)
+target_include_directories(CrazyBar PRIVATE
+        ${SDL2_INCLUDE_DIRS}
+)
 
-    # FetchContent pour Box2D version PC
-    include(FetchContent)
-    FetchContent_Declare(
-            box2d
-            GIT_REPOSITORY https://github.com/erincatto/box2d.git
-            GIT_TAG v2.4.1
-    )
-    FetchContent_MakeAvailable(box2d)
+target_link_libraries(CrazyBar PRIVATE
+        ${SDL2_LIBRARIES}
+        SDL2_image::SDL2_image
+        SDL2_ttf::SDL2_ttf
+        SDL2_mixer::SDL2_mixer
+        box2d
+)
 
-    # Chemins en dur uniquement pour le PC
-    target_include_directories(${PROJECT_NAME} PRIVATE "C:/SDL2-w64/include")
-    target_link_directories(${PROJECT_NAME} PRIVATE "C:/SDL2-w64/lib")
-    target_include_directories(${PROJECT_NAME} PRIVATE "C:/box2d-2.4.1/include")
+# ────────────────────────────────────────
+# Installation
+# ────────────────────────────────────────
 
-    # Librairies spécifiques à Windows
-    target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 SDL2main SDL2 SDL2_image SDL2_ttf SDL2_mixer box2d)
+install(TARGETS CrazyBar
+        RUNTIME DESTINATION .
+        BUNDLE DESTINATION .
+)
+
+install(DIRECTORY res/
+        DESTINATION res
+)
+
+# ────────────────────────────────────────
+# CPack
+# ────────────────────────────────────────
+
+set(CPACK_PACKAGE_NAME "CrazyBar")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "CrazyBar game")
+
+if(WIN32)
+    set(CPACK_GENERATOR "ZIP")
+elseif(APPLE)
+    set(CPACK_GENERATOR "ZIP")
+elseif(UNIX)
+    set(CPACK_GENERATOR "TGZ")
 endif()
+
+include(CPack)

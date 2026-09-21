@@ -155,4 +155,5 @@ Mix_Chunk* LoadRessource::GetSound(std::string SoundName)
     {
         return LevelUpSound;
     }
+    return nullptr;
 }
